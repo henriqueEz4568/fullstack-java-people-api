@@ -65,11 +65,33 @@ make docker:db:reset
 
 ## Rodando a API
 
+Com o banco no ar:
+
 ```bash
 ./mvnw spring-boot:run
 ```
 
 A API sobe em `http://localhost:8080`.
+
+> Os testes (`./mvnw test`) também sobem a aplicação e precisam do banco rodando.
+
+### Variáveis de ambiente
+
+A persistência usa Spring Data JPA (Hibernate). A conexão é configurada no [`application.properties`](src/main/resources/application.properties) com valores padrão iguais aos do `docker-compose.yml`, então para desenvolvimento local não é preciso definir nada.
+
+| Variável      | Padrão                                    |
+|---------------|-------------------------------------------|
+| `DB_URL`      | `jdbc:postgresql://localhost:5432/people` |
+| `DB_USER`     | `people`                                  |
+| `DB_PASSWORD` | `people`                                  |
+
+Para sobrescrever:
+
+```bash
+DB_URL=jdbc:postgresql://outro-host:5432/people DB_PASSWORD=segredo ./mvnw spring-boot:run
+```
+
+O schema é criado pelas migrations; o Hibernate roda com `ddl-auto=validate` e apenas confere se as entidades batem com as tabelas.
 
 ## Rotas
 
