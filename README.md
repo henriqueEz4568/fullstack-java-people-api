@@ -84,6 +84,7 @@ A persistência usa Spring Data JPA (Hibernate). A conexão é configurada no [`
 | `DB_PASSWORD` | `people`                                  |
 | `API_KEY`     | `dev-api-key`                             |
 | `NATIONALIZE_URL` | `https://api.nationalize.io`          |
+| `CORS_ALLOWED_ORIGINS` | vazio (CORS desligado)           |
 
 Para sobrescrever:
 
@@ -140,6 +141,7 @@ No IntelliJ, clique na seta verde ao lado da classe ou do método de teste (`Ctr
 | [`PersonRepositoryTest`](src/test/java/com/example/peopleapi/repository/PersonRepositoryTest.java) | Integração do repository (`@DataJpaTest`), um grupo por método |
 | [`PeopleApiApplicationTests`](src/test/java/com/example/peopleapi/PeopleApiApplicationTests.java) | Sobe o contexto completo da aplicação           |
 | [`SecurityConfigTest`](src/test/java/com/example/peopleapi/security/SecurityConfigTest.java)       | Autenticação por API key (`@WebMvcTest`)       |
+| [`CorsConfigTest`](src/test/java/com/example/peopleapi/security/CorsConfigTest.java)               | CORS: origens permitidas, curingas, preflight e origem bloqueada |
 | [`PersonControllerIntegrationTest`](src/test/java/com/example/peopleapi/controller/PersonControllerIntegrationTest.java) | Ponta a ponta com banco real: todas as rotas, validação de entrada, tratamento de erros e API key (a API externa de nacionalidade é simulada) |
 | [`NationalityServiceTest`](src/test/java/com/example/peopleapi/nationality/NationalityServiceTest.java) | Unitário: escolha do país mais provável e conversão do código ISO |
 | [`NationalizeClientTest`](src/test/java/com/example/peopleapi/nationality/NationalizeClientTest.java) | Cliente HTTP do nationalize.io com servidor simulado (`@RestClientTest`) |
@@ -167,6 +169,32 @@ curl -X DELETE http://localhost:8080/list/1 -H "X-API-Key: dev-api-key"
 | Com a chave correta              | Segue para a rota  |
 
 A implementação usa Spring Security: o [`ApiKeyAuthenticationFilter`](src/main/java/com/example/peopleapi/security/ApiKeyAuthenticationFilter.java) valida o header e o [`SecurityConfig`](src/main/java/com/example/peopleapi/security/SecurityConfig.java) define quais rotas exigem autenticação.
+
+## CORS
+
+CORS só é necessário quando um front-end roda em **outra origem** (outro domínio ou porta, por exemplo um React em `http://localhost:5173`) e chama a API pelo navegador. Por padrão ele fica **desligado**: o navegador bloqueia chamadas de outras origens.
+
+Para liberar, informe as origens permitidas separadas por vírgula na variável `CORS_ALLOWED_ORIGINS`:
+
+```bash
+CORS_ALLOWED_ORIGINS=http://localhost:5173 ./mvnw spring-boot:run
+```
+
+Várias origens e curingas também são aceitos:
+
+```bash
+CORS_ALLOWED_ORIGINS="http://localhost:5173,https://*.meudominio.com" ./mvnw spring-boot:run
+```
+
+Para liberar qualquer origem (apenas em desenvolvimento):
+
+```bash
+CORS_ALLOWED_ORIGINS="*" ./mvnw spring-boot:run
+```
+
+Com CORS ligado, a API aceita os métodos `GET`, `POST`, `DELETE` e `OPTIONS`, os headers `Content-Type` e `X-API-Key` (necessário para o `DELETE` autenticado) e expõe o header `Location` do cadastro. Requisições de origens fora da lista recebem `403`.
+
+No IntelliJ, adicione `CORS_ALLOWED_ORIGINS=http://localhost:5173` em **Run → Edit Configurations... → Environment variables**.
 
 ## CI
 
