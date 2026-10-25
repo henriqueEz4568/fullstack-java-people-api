@@ -53,9 +53,9 @@ public class GlobalExceptionHandler {
 		return problem(HttpStatus.NOT_FOUND, "Pessoa não encontrada", ex.getMessage());
 	}
 
-	@ExceptionHandler(DataIntegrityViolationException.class)
+	@ExceptionHandler({ DuplicateDocumentException.class, DataIntegrityViolationException.class })
 	ProblemDetail handleDuplicatePerson() {
-		return problem(HttpStatus.CONFLICT, "Pessoa já cadastrada", "Já existe uma pessoa cadastrada com este documento");
+		return problem(HttpStatus.CONFLICT, "Pessoa já cadastrada", DuplicateDocumentException.MESSAGE);
 	}
 
 	@ExceptionHandler(NationalityNotFoundException.class)
