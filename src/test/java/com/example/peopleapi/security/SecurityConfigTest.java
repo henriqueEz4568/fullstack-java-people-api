@@ -4,6 +4,7 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import org.junit.jupiter.api.DisplayName;
@@ -12,6 +13,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -89,6 +91,18 @@ class SecurityConfigTest {
 		void shouldAllowFindNationalityWithoutApiKey() throws Exception {
 			mockMvc.perform(get("/findNacionalityByPerson/12345678901"))
 					.andExpect(status().isNotFound());
+		}
+
+	}
+
+	@Nested
+	@DisplayName("CORS")
+	class Cors {
+
+		@Test
+		void shouldNotAddCorsHeadersWhenNoOriginIsConfigured() throws Exception {
+			mockMvc.perform(get("/list").header(HttpHeaders.ORIGIN, "http://localhost:5173"))
+					.andExpect(header().doesNotExist(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN));
 		}
 
 	}
