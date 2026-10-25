@@ -73,8 +73,6 @@ Com o banco no ar:
 
 A API sobe em `http://localhost:8080`.
 
-> Os testes (`./mvnw test`) também sobem a aplicação e precisam do banco rodando.
-
 ### Variáveis de ambiente
 
 A persistência usa Spring Data JPA (Hibernate). A conexão é configurada no [`application.properties`](src/main/resources/application.properties) com valores padrão iguais aos do `docker-compose.yml`, então para desenvolvimento local não é preciso definir nada.
@@ -92,6 +90,47 @@ DB_URL=jdbc:postgresql://outro-host:5432/people DB_PASSWORD=segredo ./mvnw sprin
 ```
 
 O schema é criado pelas migrations; o Hibernate roda com `ddl-auto=validate` e apenas confere se as entidades batem com as tabelas.
+
+## Repository
+
+O acesso ao banco é feito pela interface [`PersonRepository`](src/main/java/com/example/peopleapi/repository/PersonRepository.java), implementada com Spring Data JPA em [`PersonRepositoryImpl`](src/main/java/com/example/peopleapi/repository/PersonRepositoryImpl.java).
+
+| Método                         | O que faz                                                                 |
+|--------------------------------|---------------------------------------------------------------------------|
+| `getAll()`                     | Lista todas as pessoas, ordenadas por id                                  |
+| `getOne(PersonFilter where)`   | Retorna a primeira pessoa que atende ao filtro (campos nulos são ignorados) |
+| `delete(Long id)`              | Exclui pelo id e retorna `true` se a pessoa existia                       |
+| `create(Person person)`        | Persiste a pessoa e retorna com o id gerado; documento duplicado lança `DataIntegrityViolationException` |
+
+```java
+repository.getOne(PersonFilter.where().withDocument("12345678901"));
+repository.getOne(PersonFilter.where().withFirstName("Ana").withLastName("Silva"));
+```
+
+**Transações:** seguindo o padrão do Spring, a transação não é passada como parâmetro. Os métodos de escrita são `@Transactional` com propagação `REQUIRED`: se quem chamou já tem uma transação aberta (por exemplo, um service anotado com `@Transactional`), o `delete`/`create` participa dela e é desfeito junto em caso de rollback; se não houver, abrem uma própria.
+
+## Testes
+
+Os testes usam [Testcontainers](https://testcontainers.com/): cada execução sobe um PostgreSQL descartável em Docker, aplica as migrations de `db/migrations` e o remove ao final. Por isso **é preciso ter o Docker rodando**, mas **não** é preciso subir o banco do `docker-compose` — os testes nunca tocam nos seus dados locais.
+
+Rodar todos os testes:
+
+```bash
+./mvnw test
+```
+
+Rodar só os testes do repository:
+
+```bash
+./mvnw test -Dtest='PersonRepositoryTest*'
+```
+
+No IntelliJ, clique na seta verde ao lado da classe ou do método de teste (`Ctrl+Shift+F10` com o cursor dentro dele).
+
+| Teste                                                                                              | Tipo                                           |
+|----------------------------------------------------------------------------------------------------|------------------------------------------------|
+| [`PersonRepositoryTest`](src/test/java/com/example/peopleapi/repository/PersonRepositoryTest.java) | Integração do repository (`@DataJpaTest`), um grupo por método |
+| [`PeopleApiApplicationTests`](src/test/java/com/example/peopleapi/PeopleApiApplicationTests.java) | Sobe o contexto completo da aplicação           |
 
 ## Rotas
 
