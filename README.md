@@ -132,6 +132,20 @@ No IntelliJ, clique na seta verde ao lado da classe ou do método de teste (`Ctr
 | [`PersonRepositoryTest`](src/test/java/com/example/peopleapi/repository/PersonRepositoryTest.java) | Integração do repository (`@DataJpaTest`), um grupo por método |
 | [`PeopleApiApplicationTests`](src/test/java/com/example/peopleapi/PeopleApiApplicationTests.java) | Sobe o contexto completo da aplicação           |
 
+## CI
+
+Todo pull request roda o workflow [`pre-check`](.github/workflows/pre-check.yml) no GitHub Actions, que garante que a branch continua estável antes do merge:
+
+1. Configura o Java 21 (com cache das dependências do Maven)
+2. Sobe o banco com `docker compose`
+3. **Build:** `./mvnw clean compile`
+4. **Test:** `./mvnw test`
+5. **Install:** `./mvnw install -DskipTests`
+
+Se algum passo falhar, o check fica vermelho no PR e os relatórios dos testes ficam disponíveis para download em **Actions → execução → Artifacts → `surefire-reports`**. Novos commits no mesmo PR cancelam a execução anterior.
+
+Para exigir que o check passe antes do merge, ative em **Settings → Branches → Branch protection rules** (branch `main`) a opção **Require status checks to pass before merging** e selecione `Build, test and install`.
+
 ## Rotas
 
 | Método | Rota                                  |
