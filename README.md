@@ -83,6 +83,7 @@ A persistência usa Spring Data JPA (Hibernate). A conexão é configurada no [`
 | `DB_USER`     | `people`                                  |
 | `DB_PASSWORD` | `people`                                  |
 | `API_KEY`     | `dev-api-key`                             |
+| `NATIONALIZE_URL` | `https://api.nationalize.io`          |
 
 Para sobrescrever:
 
@@ -126,6 +127,12 @@ Rodar só os testes do repository:
 ./mvnw test -Dtest='PersonRepositoryTest*'
 ```
 
+Rodar só os testes ponta a ponta das rotas:
+
+```bash
+./mvnw test -Dtest='PersonControllerIntegrationTest*'
+```
+
 No IntelliJ, clique na seta verde ao lado da classe ou do método de teste (`Ctrl+Shift+F10` com o cursor dentro dele).
 
 | Teste                                                                                              | Tipo                                           |
@@ -133,6 +140,9 @@ No IntelliJ, clique na seta verde ao lado da classe ou do método de teste (`Ctr
 | [`PersonRepositoryTest`](src/test/java/com/example/peopleapi/repository/PersonRepositoryTest.java) | Integração do repository (`@DataJpaTest`), um grupo por método |
 | [`PeopleApiApplicationTests`](src/test/java/com/example/peopleapi/PeopleApiApplicationTests.java) | Sobe o contexto completo da aplicação           |
 | [`SecurityConfigTest`](src/test/java/com/example/peopleapi/security/SecurityConfigTest.java)       | Autenticação por API key (`@WebMvcTest`)       |
+| [`PersonControllerIntegrationTest`](src/test/java/com/example/peopleapi/controller/PersonControllerIntegrationTest.java) | Ponta a ponta com banco real: todas as rotas, validação de entrada, tratamento de erros e API key (a API externa de nacionalidade é simulada) |
+| [`NationalityServiceTest`](src/test/java/com/example/peopleapi/nationality/NationalityServiceTest.java) | Unitário: escolha do país mais provável e conversão do código ISO |
+| [`NationalizeClientTest`](src/test/java/com/example/peopleapi/nationality/NationalizeClientTest.java) | Cliente HTTP do nationalize.io com servidor simulado (`@RestClientTest`) |
 
 ## Autenticação
 
@@ -174,10 +184,80 @@ Para exigir que o check passe antes do merge, ative em **Settings → Branches �
 
 ## Rotas
 
-| Método | Rota                                  |
-|--------|---------------------------------------|
-| POST   | `/registrarName`                      |
-| GET    | `/list`                               |
-| GET    | `/list/{document}`                    |
-| DELETE | `/list/{id}` 🔒 (API key)             |
-| GET    | `/findNacionalityByPerson/{document}` |
+| Método | Rota                                  | Sucesso | Erros possíveis |
+|--------|---------------------------------------|---------|-----------------|
+| POST   | `/registrarName`                      | `201`   | `400`, `409`    |
+| GET    | `/list`                               | `200`   | —               |
+| GET    | `/list/{document}`                    | `200`   | `400`, `404`    |
+| DELETE | `/list/{id}` 🔒 (API key)             | `204`   | `400`, `401`, `404` |
+| GET    | `/findNacionalityByPerson/{document}` | `200`   | `400`, `404`, `502` |
+
+### Validações
+
+| Rota | Campo | Regra |
+|------|-------|-------|
+| `POST /registrarName` | `document` | obrigatório, exatamente 11 dígitos numéricos |
+| `POST /registrarName` | `firstName`, `lastName` | obrigatórios, não podem ser vazios, máximo 100 caracteres |
+| `POST /registrarName` | `email` | obrigatório, formato de e-mail válido, máximo 255 caracteres |
+| `GET /list/{document}` | `document` | exatamente 11 dígitos numéricos |
+| `DELETE /list/{id}` | `id` | número inteiro maior que zero |
+| `GET /findNacionalityByPerson/{document}` | `document` | exatamente 11 dígitos numéricos |
+
+### Erros
+
+Todos os erros seguem o formato padrão [Problem Details (RFC 9457)](https://www.rfc-editor.org/rfc/rfc9457) com `Content-Type: application/problem+json`. Erros de validação trazem o campo `errors` com a mensagem de cada campo inválido:
+
+```json
+{
+  "status": 400,
+  "title": "Dados inválidos",
+  "detail": "Um ou mais campos são inválidos",
+  "instance": "/registrarName",
+  "errors": {
+    "document": "deve conter exatamente 11 dígitos numéricos",
+    "email": "deve ser um e-mail válido"
+  }
+}
+```
+
+| Status | Quando |
+|--------|--------|
+| `400`  | Campo inválido, JSON malformado/ausente ou parâmetro com tipo errado |
+| `401`  | `DELETE` sem API key ou com chave inválida |
+| `404`  | Pessoa não encontrada, ou a API externa não conseguiu prever a nacionalidade |
+| `409`  | Já existe uma pessoa com o mesmo documento |
+| `502`  | Falha ao consultar a API externa de nacionalidade |
+
+### Nacionalidade
+
+`GET /findNacionalityByPerson/{document}` busca a pessoa pelo documento, consulta o primeiro nome dela em [nationalize.io](https://nationalize.io/), escolhe o país de maior probabilidade e converte o código ISO para o nome do país em português.
+
+A chamada HTTP fica em [`NationalizeClient`](src/main/java/com/example/peopleapi/nationality/NationalizeClient.java) e a regra de escolha/conversão em [`NationalityService`](src/main/java/com/example/peopleapi/nationality/NationalityService.java); o controller apenas orquestra.
+
+### Exemplos
+
+```bash
+curl -X POST http://localhost:8080/registrarName \
+  -H "Content-Type: application/json" \
+  -d '{"document": "12345678901", "firstName": "Nathaniel", "lastName": "Smith", "email": "nathaniel@email.com"}'
+```
+
+```bash
+curl http://localhost:8080/list
+```
+
+```bash
+curl http://localhost:8080/list/12345678901
+```
+
+```bash
+curl http://localhost:8080/findNacionalityByPerson/12345678901
+```
+
+```json
+{"document": "12345678901", "firstName": "Nathaniel", "countryCode": "US", "countryName": "Estados Unidos", "probability": 0.357622}
+```
+
+```bash
+curl -X DELETE http://localhost:8080/list/1 -H "X-API-Key: dev-api-key"
+```

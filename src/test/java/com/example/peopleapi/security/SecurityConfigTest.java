@@ -1,5 +1,6 @@
 package com.example.peopleapi.security;
 
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -11,10 +12,14 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.MediaType;
 import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
-import com.example.peopleapi.PersonController;
+import com.example.peopleapi.controller.PersonController;
+import com.example.peopleapi.nationality.NationalityService;
+import com.example.peopleapi.repository.PersonRepository;
 
 @WebMvcTest(PersonController.class)
 @Import(SecurityConfig.class)
@@ -25,6 +30,12 @@ class SecurityConfigTest {
 
 	@Autowired
 	private MockMvc mockMvc;
+
+	@MockitoBean
+	private PersonRepository repository;
+
+	@MockitoBean
+	private NationalityService nationalityService;
 
 	@Nested
 	@DisplayName("DELETE /list/{id}")
@@ -44,8 +55,10 @@ class SecurityConfigTest {
 
 		@Test
 		void shouldReachControllerWithValidApiKey() throws Exception {
+			when(repository.delete(1L)).thenReturn(true);
+
 			mockMvc.perform(delete("/list/1").header(ApiKeyAuthenticationFilter.HEADER, VALID_KEY))
-					.andExpect(status().isNotImplemented());
+					.andExpect(status().isNoContent());
 		}
 
 	}
@@ -56,26 +69,26 @@ class SecurityConfigTest {
 
 		@Test
 		void shouldAllowRegisterWithoutApiKey() throws Exception {
-			mockMvc.perform(post("/registrarName"))
-					.andExpect(status().isNotImplemented());
+			mockMvc.perform(post("/registrarName").contentType(MediaType.APPLICATION_JSON).content("{}"))
+					.andExpect(status().isBadRequest());
 		}
 
 		@Test
 		void shouldAllowListWithoutApiKey() throws Exception {
 			mockMvc.perform(get("/list"))
-					.andExpect(status().isNotImplemented());
+					.andExpect(status().isOk());
 		}
 
 		@Test
 		void shouldAllowFindByDocumentWithoutApiKey() throws Exception {
 			mockMvc.perform(get("/list/12345678901"))
-					.andExpect(status().isNotImplemented());
+					.andExpect(status().isNotFound());
 		}
 
 		@Test
 		void shouldAllowFindNationalityWithoutApiKey() throws Exception {
 			mockMvc.perform(get("/findNacionalityByPerson/12345678901"))
-					.andExpect(status().isNotImplemented());
+					.andExpect(status().isNotFound());
 		}
 
 	}
