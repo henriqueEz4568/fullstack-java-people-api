@@ -82,6 +82,7 @@ A persistência usa Spring Data JPA (Hibernate). A conexão é configurada no [`
 | `DB_URL`      | `jdbc:postgresql://localhost:5432/people` |
 | `DB_USER`     | `people`                                  |
 | `DB_PASSWORD` | `people`                                  |
+| `API_KEY`     | `dev-api-key`                             |
 
 Para sobrescrever:
 
@@ -131,6 +132,31 @@ No IntelliJ, clique na seta verde ao lado da classe ou do método de teste (`Ctr
 |----------------------------------------------------------------------------------------------------|------------------------------------------------|
 | [`PersonRepositoryTest`](src/test/java/com/example/peopleapi/repository/PersonRepositoryTest.java) | Integração do repository (`@DataJpaTest`), um grupo por método |
 | [`PeopleApiApplicationTests`](src/test/java/com/example/peopleapi/PeopleApiApplicationTests.java) | Sobe o contexto completo da aplicação           |
+| [`SecurityConfigTest`](src/test/java/com/example/peopleapi/security/SecurityConfigTest.java)       | Autenticação por API key (`@WebMvcTest`)       |
+
+## Autenticação
+
+A rota `DELETE /list/{id}` é protegida por **API key**, enviada no header `X-API-Key`. As demais rotas são públicas.
+
+A chave é lida da variável de ambiente `API_KEY` (padrão `dev-api-key` para desenvolvimento local). Em produção, defina sempre uma chave própria:
+
+```bash
+API_KEY=minha-chave-secreta ./mvnw spring-boot:run
+```
+
+Exemplo de chamada:
+
+```bash
+curl -X DELETE http://localhost:8080/list/1 -H "X-API-Key: dev-api-key"
+```
+
+| Situação                         | Resposta           |
+|----------------------------------|--------------------|
+| Sem o header `X-API-Key`         | `401 Unauthorized` |
+| Com uma chave inválida           | `401 Unauthorized` |
+| Com a chave correta              | Segue para a rota  |
+
+A implementação usa Spring Security: o [`ApiKeyAuthenticationFilter`](src/main/java/com/example/peopleapi/security/ApiKeyAuthenticationFilter.java) valida o header e o [`SecurityConfig`](src/main/java/com/example/peopleapi/security/SecurityConfig.java) define quais rotas exigem autenticação.
 
 ## Rotas
 
@@ -139,5 +165,5 @@ No IntelliJ, clique na seta verde ao lado da classe ou do método de teste (`Ctr
 | POST   | `/registrarName`                      |
 | GET    | `/list`                               |
 | GET    | `/list/{document}`                    |
-| DELETE | `/list/{id}`                          |
+| DELETE | `/list/{id}` 🔒 (API key)             |
 | GET    | `/findNacionalityByPerson/{document}` |
