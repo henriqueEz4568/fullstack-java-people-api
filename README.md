@@ -143,6 +143,7 @@ No IntelliJ, clique na seta verde ao lado da classe ou do método de teste (`Ctr
 | [`SecurityConfigTest`](src/test/java/com/example/peopleapi/security/SecurityConfigTest.java)       | Autenticação por API key (`@WebMvcTest`)       |
 | [`CorsConfigTest`](src/test/java/com/example/peopleapi/security/CorsConfigTest.java)               | CORS: origens permitidas, curingas, preflight e origem bloqueada |
 | [`PersonControllerIntegrationTest`](src/test/java/com/example/peopleapi/controller/PersonControllerIntegrationTest.java) | Ponta a ponta com banco real: todas as rotas, validação de entrada, tratamento de erros e API key (a API externa de nacionalidade é simulada) |
+| [`PersonControllerTest`](src/test/java/com/example/peopleapi/controller/PersonControllerTest.java) | Cadastro: consulta o documento antes de inserir e retorna 409 sem gravar; cobre também a duplicidade barrada pelo banco |
 | [`NationalityServiceTest`](src/test/java/com/example/peopleapi/nationality/NationalityServiceTest.java) | Unitário: escolha do país mais provável e conversão do código ISO |
 | [`NationalizeClientTest`](src/test/java/com/example/peopleapi/nationality/NationalizeClientTest.java) | Cliente HTTP do nationalize.io com servidor simulado (`@RestClientTest`) |
 
@@ -253,7 +254,7 @@ Todos os erros seguem o formato padrão [Problem Details (RFC 9457)](https://www
 | `400`  | Campo inválido, JSON malformado/ausente ou parâmetro com tipo errado |
 | `401`  | `DELETE` sem API key ou com chave inválida |
 | `404`  | Pessoa não encontrada, ou a API externa não conseguiu prever a nacionalidade |
-| `409`  | Já existe uma pessoa com o mesmo documento |
+| `409`  | Já existe uma pessoa com o mesmo documento (verificado antes de inserir, com a constraint `UNIQUE` do banco como garantia contra cadastros simultâneos) |
 | `502`  | Falha ao consultar a API externa de nacionalidade |
 
 ### Nacionalidade

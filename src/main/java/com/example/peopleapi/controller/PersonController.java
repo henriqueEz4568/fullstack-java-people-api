@@ -17,6 +17,7 @@ import com.example.peopleapi.dto.NationalityResponse;
 import com.example.peopleapi.dto.PersonRequest;
 import com.example.peopleapi.dto.PersonResponse;
 import com.example.peopleapi.entity.Person;
+import com.example.peopleapi.exception.DuplicateDocumentException;
 import com.example.peopleapi.exception.PersonNotFoundException;
 import com.example.peopleapi.nationality.NationalityService;
 import com.example.peopleapi.repository.PersonRepository;
@@ -39,6 +40,9 @@ public class PersonController {
 
 	@PostMapping("/registrarName")
 	public ResponseEntity<PersonResponse> register(@Valid @RequestBody PersonRequest request) {
+		if (repository.getOne(where().withDocument(request.document())).isPresent()) {
+			throw new DuplicateDocumentException();
+		}
 		Person person = repository.create(request.toEntity());
 		return ResponseEntity.created(URI.create("/list/" + person.getDocument())).body(PersonResponse.from(person));
 	}
