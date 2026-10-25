@@ -93,6 +93,20 @@ DB_URL=jdbc:postgresql://outro-host:5432/people DB_PASSWORD=segredo ./mvnw sprin
 
 O schema é criado pelas migrations; o Hibernate roda com `ddl-auto=validate` e apenas confere se as entidades batem com as tabelas.
 
+## CI
+
+Todo pull request roda o workflow [`pre-check`](.github/workflows/pre-check.yml) no GitHub Actions, que garante que a branch continua estável antes do merge:
+
+1. Configura o Java 21 (com cache das dependências do Maven)
+2. Sobe o banco com `docker compose`
+3. **Build:** `./mvnw clean compile`
+4. **Test:** `./mvnw test`
+5. **Install:** `./mvnw install -DskipTests`
+
+Se algum passo falhar, o check fica vermelho no PR e os relatórios dos testes ficam disponíveis para download em **Actions → execução → Artifacts → `surefire-reports`**. Novos commits no mesmo PR cancelam a execução anterior.
+
+Para exigir que o check passe antes do merge, ative em **Settings → Branches → Branch protection rules** (branch `main`) a opção **Require status checks to pass before merging** e selecione `Build, test and install`.
+
 ## Rotas
 
 | Método | Rota                                  |
