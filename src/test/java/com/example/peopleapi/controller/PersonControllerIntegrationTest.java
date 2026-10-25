@@ -24,11 +24,14 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.web.client.RestClientException;
 
 import com.example.peopleapi.TestcontainersConfiguration;
+import com.jayway.jsonpath.JsonPath;
 import com.example.peopleapi.entity.Person;
 import com.example.peopleapi.nationality.NationalizeApiException;
 import com.example.peopleapi.nationality.NationalizeClient;
@@ -50,6 +53,9 @@ class PersonControllerIntegrationTest {
 	@Autowired
 	private PersonRepository repository;
 
+	@Autowired
+	private JdbcTemplate jdbcTemplate;
+
 	@MockitoBean
 	private NationalizeClient nationalizeClient;
 
@@ -59,6 +65,21 @@ class PersonControllerIntegrationTest {
 	@AfterEach
 	void cleanUp() {
 		repository.getAll().forEach(person -> repository.delete(person.getId()));
+	}
+
+	private long registerViaApi(String document, String firstName) throws Exception {
+		MvcResult result = mockMvc.perform(post("/registrarName")
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("""
+								{"document": "%s", "firstName": "%s", "lastName": "Silva", "email": "%s@email.com"}
+								""".formatted(document, firstName, firstName.toLowerCase())))
+				.andExpect(status().isCreated())
+				.andReturn();
+		return JsonPath.<Number>read(result.getResponse().getContentAsString(), "$.id").longValue();
+	}
+
+	private int countInDatabase(long id) {
+		return jdbcTemplate.queryForObject("SELECT COUNT(*) FROM person WHERE id = ?", Integer.class, id);
 	}
 
 	private Person createPerson(String document, String firstName) {
@@ -314,6 +335,73 @@ class PersonControllerIntegrationTest {
 			mockMvc.perform(get("/findNacionalityByPerson/{document}", "123"))
 					.andExpect(status().isBadRequest())
 					.andExpect(jsonPath("$.errors.document").value("deve conter exatamente 11 dígitos numéricos"));
+		}
+
+	}
+
+	@Nested
+	@DisplayName("Fluxos ponta a ponta")
+	class Flows {
+
+		@Test
+		void shouldCreateViaPostAndFindViaGetByDocument() throws Exception {
+			long id = registerViaApi(DOCUMENT, "Ana");
+
+			assertThat(countInDatabase(id)).isEqualTo(1);
+
+			mockMvc.perform(get("/list/{document}", DOCUMENT))
+					.andExpect(status().isOk())
+					.andExpect(jsonPath("$.id").value(id))
+					.andExpect(jsonPath("$.document").value(DOCUMENT))
+					.andExpect(jsonPath("$.firstName").value("Ana"))
+					.andExpect(jsonPath("$.lastName").value("Silva"))
+					.andExpect(jsonPath("$.email").value("ana@email.com"));
+
+			mockMvc.perform(get("/list"))
+					.andExpect(status().isOk())
+					.andExpect(jsonPath("$", hasSize(1)))
+					.andExpect(jsonPath("$[0].id").value(id));
+		}
+
+		@Test
+		void shouldRemoveFromDatabaseAndListAfterDelete() throws Exception {
+			long anaId = registerViaApi("11111111111", "Ana");
+			long brunoId = registerViaApi("22222222222", "Bruno");
+
+			mockMvc.perform(get("/list"))
+					.andExpect(jsonPath("$", hasSize(2)));
+
+			mockMvc.perform(delete("/list/{id}", anaId).header(ApiKeyAuthenticationFilter.HEADER, apiKey))
+					.andExpect(status().isNoContent());
+
+			assertThat(countInDatabase(anaId)).isZero();
+			assertThat(countInDatabase(brunoId)).isEqualTo(1);
+
+			mockMvc.perform(get("/list"))
+					.andExpect(status().isOk())
+					.andExpect(jsonPath("$", hasSize(1)))
+					.andExpect(jsonPath("$[0].id").value(brunoId))
+					.andExpect(jsonPath("$[0].document").value("22222222222"));
+
+			mockMvc.perform(get("/list/{document}", "11111111111"))
+					.andExpect(status().isNotFound());
+
+			mockMvc.perform(delete("/list/{id}", anaId).header(ApiKeyAuthenticationFilter.HEADER, apiKey))
+					.andExpect(status().isNotFound());
+		}
+
+		@Test
+		void shouldKeepPersonInDatabaseAndListWhenDeleteIsUnauthorized() throws Exception {
+			long id = registerViaApi(DOCUMENT, "Ana");
+
+			mockMvc.perform(delete("/list/{id}", id).header(ApiKeyAuthenticationFilter.HEADER, "wrong-key"))
+					.andExpect(status().isUnauthorized());
+
+			assertThat(countInDatabase(id)).isEqualTo(1);
+
+			mockMvc.perform(get("/list"))
+					.andExpect(jsonPath("$", hasSize(1)))
+					.andExpect(jsonPath("$[0].id").value(id));
 		}
 
 	}
